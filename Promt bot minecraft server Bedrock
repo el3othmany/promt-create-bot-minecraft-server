@@ -1,0 +1,47 @@
+Create a complete Node.js project for a single AFK Minecraft Bot on Replit, but specifically for Bedrock Edition (not Java). The dashboard must visually match the attached screenshot (dark background #121212, white text, green titles, and a terminal log with light green monospace font). The project must include three files: package.json, index.js, and public/index.html.
+
+Important: Since Bedrock does not support the standard mineflayer library, use the "minetoring" library (or bedrock-protocol) instead.
+
+Detailed requirements:
+
+1. package.json:
+   - Include dependencies: express and minetoring.
+   - Set "type": "module" because minetoring uses ES Modules.
+   - Add a start script: "start": "node index.js".
+
+2. index.js (backend - using ES Modules):
+   - Use import statements (not require).
+   - Use Express and serve a static HTML page from the "public" folder at the root "/".
+   - Define a single config object holding: mc_ip, mc_port (default 19132), bot_name, join_message, mc_version (default "1.21.50").
+   - Global variable let bot = null to manage the single bot instance.
+   - POST /start: accepts JSON with the same config keys. If a bot is already running, stop it first. Save the new config values and call startBot().
+   - POST /stop: stops and removes the current bot, returns success.
+   - GET /status: returns JSON { online: (bot && bot.connected), status: "Online"/"Offline", botName: config.bot_name }.
+   - startBot():
+     * Import Bot and BotOptions from minetoring.
+     * Create a BotOptions instance and set: host, port, username, version (from config).
+     * Create a new bot, then execute: await bot.init(opt), await bot.connect(), and await bot.waitUntilSpawn().
+     * After spawn (or waitUntilSpawn) is complete: wait 500ms, then send join_message via bot.actions.sendMessage() and log it to the events.
+     * Listen for the following events (as per minetoring docs):
+       - "message" or "chat" event: log the sender's name and the message.
+       - "player_join" event: log the joining player's name.
+       - "player_leave" event: log the leaving player's name.
+     * For each of these three events, build a timestamped string like "[HH:MM:SS] event description", push it into a global events array (max 200 items), and broadcast it to all SSE clients.
+     * If the bot disconnects or crashes: set bot = null and schedule a reconnect after 30 seconds using the same config (prevent reconnection if the stop was manual).
+     * On any error: log to console only.
+   - SSE endpoint /events: sets headers (text/event-stream, no-cache, keep-alive). When a new client connects, send all stored events as initial data, then push new events as JSON { event: "the message" }.
+   - The server listens on process.env.PORT || 3000, with appropriate console logs.
+
+3. public/index.html (must visually match the screenshot):
+   - Design: background #121212, text #fff, green headings (#0f0), input fields with background #0d0d0d and grey borders, transparent buttons with colored borders (start = green, stop = red).
+   - Elements:
+     * Bot status: a green/red circle next to status text and the bot name.
+     * Configuration form: fields for mc_ip (text, placeholder "Server IP", default ice_creme.aternos.me), mc_port (number, default 19132), bot_name (text, default AFK_Bot), join_message (text, default "AFK Bot is now online!"). Additionally, a dropdown (select) for mc_version with Bedrock supported versions: 1.20.0, 1.20.30, 1.20.80, 1.21.0, 1.21.20, 1.21.50, 1.21.60, 1.21.70, 1.21.100 (set 1.21.50 as default).
+     * Buttons: "Start Bot" (sends POST /start; if bot is already running, show a confirm dialog before restarting), "Stop Bot" (hidden by default, shown only when bot is online; sends POST /stop).
+     * Terminal log: a readonly textarea with black background (#0a0a0a), light green text (#0f0), monospace font. It should initially display messages mimicking the screenshot (connection refused errors). Connect to /events via EventSource, append each new event as a line with auto-scroll, keeping only the last ~200 lines.
+   - On page load: fetch /status and update the UI, then refresh status every 5 seconds.
+
+4. Additional notes:
+   - Ensure proper error handling (try/catch) and automatic reconnection on socket disconnection.
+   - Since minetoring uses ES Modules, use import/export in index.js and set "type": "module" in package.json.
+   - The code must be ready to run immediately on Replit.
